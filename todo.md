@@ -1,0 +1,29 @@
+# MIS Volunteer Hours Tracking System - TODO
+
+## Core Features
+- [x] Simple achievement registration form (university ID, achievement type dropdown, image upload)
+- [x] Arabic to English numeral conversion for university ID
+- [x] Google Drive integration for image uploads
+- [x] Google Sheets integration for data storage (Requests sheet)
+- [x] HR admin review interface for pending requests
+- [x] Approval workflow with automatic hours calculation
+- [x] Achievement details aggregation in Members sheet
+- [x] Admin page for managing achievement types and hours
+- [x] Automatic notifications to HR admins on new submissions
+
+## Design
+- [x] Minimal black and white design
+- [x] IBM Plex Arabic font integration
+- [x] RTL support for Arabic interface
+
+## Documentation
+- [x] Google Sheets setup guide (Members, Requests, AchievementTypes sheets)
+- [x] Required formulas documentation
+- [x] Google Sheets API connection guide
+- [x] Google Drive API setup instructions
+
+## Technical
+- [x] Server-side Google Sheets API integration
+- [x] Server-side Google Drive API integration
+- [x] tRPC procedures for all operations
+- [x] Vitest tests for critical functions

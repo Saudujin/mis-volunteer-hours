@@ -1,0 +1,382 @@
+import { google, sheets_v4, drive_v3 } from "googleapis";
+import { ENV } from "./_core/env";
+import { Readable } from "stream";
+
+// Initialize Google Sheets API
+function getGoogleAuth() {
+  const credentials = ENV.googleServiceAccountKey;
+  if (!credentials) {
+    throw new Error("Google Service Account credentials not configured");
+  }
+
+  const auth = new google.auth.GoogleAuth({
+    credentials: JSON.parse(credentials),
+    scopes: [
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive.file",
+    ],
+  });
+
+  return auth;
+}
+
+function getSheetsClient(): sheets_v4.Sheets {
+  const auth = getGoogleAuth();
+  return google.sheets({ version: "v4", auth });
+}
+
+function getDriveClient(): drive_v3.Drive {
+  const auth = getGoogleAuth();
+  return google.drive({ version: "v3", auth });
+}
+
+const SPREADSHEET_ID = ENV.googleSpreadsheetId || "";
+
+// Sheet names
+const SHEETS = {
+  MEMBERS: "Members",
+  REQUESTS: "Requests",
+  ACHIEVEMENT_TYPES: "AchievementTypes",
+};
+
+export interface AchievementType {
+  id: string;
+  name: string;
+  hours: number;
+}
+
+export interface PendingRequest {
+  rowIndex: number;
+  universityId: string;
+  achievementType: string;
+  hours: number;
+  imageLink: string;
+  date: string;
+  approved: boolean;
+}
+
+export interface Member {
+  universityId: string;
+  name: string;
+  email: string;
+  phone: string;
+  committee: string;
+  totalHours: number;
+  achievements: string;
+}
+
+// Get achievement types from AchievementTypes sheet
+export async function getAchievementTypes(): Promise<AchievementType[]> {
+  try {
+    const sheets = getSheetsClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEETS.ACHIEVEMENT_TYPES}!A2:C`,
+    });
+
+    const rows = response.data.values || [];
+    return rows.map((row: string[], index: number) => ({
+      id: `type_${index}`,
+      name: row[0] || "",
+      hours: parseFloat(row[1]) || 0,
+    }));
+  } catch (error) {
+    console.error("Error fetching achievement types:", error);
+    return [];
+  }
+}
+
+// Add new achievement type
+export async function addAchievementType(
+  name: string,
+  hours: number
+): Promise<boolean> {
+  try {
+    const sheets = getSheetsClient();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEETS.ACHIEVEMENT_TYPES}!A:C`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[name, hours, new Date().toISOString()]],
+      },
+    });
+    return true;
+  } catch (error) {
+    console.error("Error adding achievement type:", error);
+    return false;
+  }
+}
+
+// Delete achievement type by row index
+export async function deleteAchievementType(rowIndex: number): Promise<boolean> {
+  try {
+    const sheets = getSheetsClient();
+
+    // Get the sheet ID first
+    const spreadsheet = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
+    });
+
+    const sheet = spreadsheet.data.sheets?.find(
+      (s: sheets_v4.Schema$Sheet) => s.properties?.title === SHEETS.ACHIEVEMENT_TYPES
+    );
+
+    if (!sheet?.properties?.sheetId) {
+      throw new Error("AchievementTypes sheet not found");
+    }
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: sheet.properties.sheetId,
+                dimension: "ROWS",
+                startIndex: rowIndex + 1, // +1 for header row
+                endIndex: rowIndex + 2,
+              },
+            },
+          },
+        ],
+      },
+    });
+    return true;
+  } catch (error) {
+    console.error("Error deleting achievement type:", error);
+    return false;
+  }
+}
+
+// Upload image to Google Drive and return the link
+export async function uploadImageToDrive(
+  base64Data: string,
+  fileName: string
+): Promise<string> {
+  try {
+    const drive = getDriveClient();
+
+    // Extract the base64 content (remove data:image/...;base64, prefix)
+    const base64Content = base64Data.split(",")[1];
+    const mimeType = base64Data.match(/data:(.*?);base64/)?.[1] || "image/jpeg";
+
+    // Convert base64 to buffer
+    const buffer = Buffer.from(base64Content, "base64");
+
+    // Create file in Google Drive
+    const response = await drive.files.create({
+      requestBody: {
+        name: `${Date.now()}_${fileName}`,
+        mimeType: mimeType,
+        parents: ENV.googleDriveFolderId ? [ENV.googleDriveFolderId] : undefined,
+      },
+      media: {
+        mimeType: mimeType,
+        body: Readable.from(buffer),
+      },
+      fields: "id,webViewLink",
+    });
+
+    // Make the file publicly viewable
+    await drive.permissions.create({
+      fileId: response.data.id!,
+      requestBody: {
+        role: "reader",
+        type: "anyone",
+      },
+    });
+
+    // Get the direct view link
+    const fileLink = `https://drive.google.com/file/d/${response.data.id}/view`;
+    return fileLink;
+  } catch (error) {
+    console.error("Error uploading to Google Drive:", error);
+    throw new Error("Failed to upload image to Google Drive");
+  }
+}
+
+// Submit a new volunteer hours request
+export async function submitRequest(data: {
+  universityId: string;
+  achievementType: string;
+  imageLink: string;
+}): Promise<boolean> {
+  try {
+    const sheets = getSheetsClient();
+
+    // Get achievement type details
+    const types = await getAchievementTypes();
+    const typeInfo = types.find((t: AchievementType) => t.id === data.achievementType);
+    const typeName = typeInfo?.name || data.achievementType;
+    const hours = typeInfo?.hours || 0;
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEETS.REQUESTS}!A:G`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [
+          [
+            data.universityId,
+            typeName,
+            hours,
+            data.imageLink,
+            new Date().toISOString(),
+            "FALSE", // Approved column
+            "", // Approved by
+          ],
+        ],
+      },
+    });
+    return true;
+  } catch (error) {
+    console.error("Error submitting request:", error);
+    return false;
+  }
+}
+
+// Get all pending requests (not approved)
+export async function getPendingRequests(): Promise<PendingRequest[]> {
+  try {
+    const sheets = getSheetsClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEETS.REQUESTS}!A2:G`,
+    });
+
+    const rows = response.data.values || [];
+    return rows
+      .map((row: string[], index: number) => ({
+        rowIndex: index,
+        universityId: row[0] || "",
+        achievementType: row[1] || "",
+        hours: parseFloat(row[2]) || 0,
+        imageLink: row[3] || "",
+        date: row[4] || "",
+        approved: row[5]?.toUpperCase() === "TRUE",
+      }))
+      .filter((r: PendingRequest) => !r.approved);
+  } catch (error) {
+    console.error("Error fetching pending requests:", error);
+    return [];
+  }
+}
+
+// Get all requests (for admin view)
+export async function getAllRequests(): Promise<PendingRequest[]> {
+  try {
+    const sheets = getSheetsClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEETS.REQUESTS}!A2:G`,
+    });
+
+    const rows = response.data.values || [];
+    return rows.map((row: string[], index: number) => ({
+      rowIndex: index,
+      universityId: row[0] || "",
+      achievementType: row[1] || "",
+      hours: parseFloat(row[2]) || 0,
+      imageLink: row[3] || "",
+      date: row[4] || "",
+      approved: row[5]?.toUpperCase() === "TRUE",
+    }));
+  } catch (error) {
+    console.error("Error fetching all requests:", error);
+    return [];
+  }
+}
+
+// Approve a request
+export async function approveRequest(
+  rowIndex: number,
+  approvedBy: string
+): Promise<boolean> {
+  try {
+    const sheets = getSheetsClient();
+
+    // Update the approved column (F) and approved by column (G)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEETS.REQUESTS}!F${rowIndex + 2}:G${rowIndex + 2}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [["TRUE", approvedBy]],
+      },
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error approving request:", error);
+    return false;
+  }
+}
+
+// Reject (delete) a request
+export async function rejectRequest(rowIndex: number): Promise<boolean> {
+  try {
+    const sheets = getSheetsClient();
+
+    // Get the sheet ID first
+    const spreadsheet = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
+    });
+
+    const sheet = spreadsheet.data.sheets?.find(
+      (s: sheets_v4.Schema$Sheet) => s.properties?.title === SHEETS.REQUESTS
+    );
+
+    if (!sheet?.properties?.sheetId) {
+      throw new Error("Requests sheet not found");
+    }
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: sheet.properties.sheetId,
+                dimension: "ROWS",
+                startIndex: rowIndex + 1, // +1 for header row
+                endIndex: rowIndex + 2,
+              },
+            },
+          },
+        ],
+      },
+    });
+    return true;
+  } catch (error) {
+    console.error("Error rejecting request:", error);
+    return false;
+  }
+}
+
+// Get all members with their cumulative hours
+export async function getMembers(): Promise<Member[]> {
+  try {
+    const sheets = getSheetsClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEETS.MEMBERS}!A2:G`,
+    });
+
+    const rows = response.data.values || [];
+    return rows.map((row: string[]) => ({
+      universityId: row[0] || "",
+      name: row[1] || "",
+      email: row[2] || "",
+      phone: row[3] || "",
+      committee: row[4] || "",
+      totalHours: parseFloat(row[5]) || 0,
+      achievements: row[6] || "",
+    }));
+  } catch (error) {
+    console.error("Error fetching members:", error);
+    return [];
+  }
+}
