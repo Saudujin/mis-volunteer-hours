@@ -9,11 +9,21 @@ function getGoogleAuth() {
     throw new Error("Google Service Account credentials not configured");
   }
 
+  // Parse credentials and fix private key format if needed
+  const parsedCredentials = JSON.parse(credentials);
+  
+  // Fix private key format - restore spaces that may have been stripped
+  if (parsedCredentials.private_key) {
+    parsedCredentials.private_key = parsedCredentials.private_key
+      .replace(/-----BEGINPRIVATEKEY-----/g, '-----BEGIN PRIVATE KEY-----')
+      .replace(/-----ENDPRIVATEKEY-----/g, '-----END PRIVATE KEY-----');
+  }
+
   const auth = new google.auth.GoogleAuth({
-    credentials: JSON.parse(credentials),
+    credentials: parsedCredentials,
     scopes: [
       "https://www.googleapis.com/auth/spreadsheets",
-      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/drive",
     ],
   });
 

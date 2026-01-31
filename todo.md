@@ -30,3 +30,4 @@
 
 ## Changes
 - [x] Change achievement type dropdown to free text description field
+- [x] Connected Google Sheets and Google Drive APIs with service account credentials
