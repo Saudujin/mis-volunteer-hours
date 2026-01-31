@@ -48,7 +48,7 @@ export interface AchievementType {
 export interface PendingRequest {
   rowIndex: number;
   universityId: string;
-  achievementType: string;
+  description: string;
   hours: number;
   imageLink: string;
   date: string;
@@ -65,7 +65,7 @@ export interface Member {
   achievements: string;
 }
 
-// Get achievement types from AchievementTypes sheet
+// Get achievement types from AchievementTypes sheet (for reference/admin)
 export async function getAchievementTypes(): Promise<AchievementType[]> {
   try {
     const sheets = getSheetsClient();
@@ -200,17 +200,11 @@ export async function uploadImageToDrive(
 // Submit a new volunteer hours request
 export async function submitRequest(data: {
   universityId: string;
-  achievementType: string;
+  description: string;
   imageLink: string;
 }): Promise<boolean> {
   try {
     const sheets = getSheetsClient();
-
-    // Get achievement type details
-    const types = await getAchievementTypes();
-    const typeInfo = types.find((t: AchievementType) => t.id === data.achievementType);
-    const typeName = typeInfo?.name || data.achievementType;
-    const hours = typeInfo?.hours || 0;
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
@@ -220,8 +214,8 @@ export async function submitRequest(data: {
         values: [
           [
             data.universityId,
-            typeName,
-            hours,
+            data.description,
+            "", // Hours - will be set by admin when approving
             data.imageLink,
             new Date().toISOString(),
             "FALSE", // Approved column
@@ -251,7 +245,7 @@ export async function getPendingRequests(): Promise<PendingRequest[]> {
       .map((row: string[], index: number) => ({
         rowIndex: index,
         universityId: row[0] || "",
-        achievementType: row[1] || "",
+        description: row[1] || "",
         hours: parseFloat(row[2]) || 0,
         imageLink: row[3] || "",
         date: row[4] || "",
@@ -277,7 +271,7 @@ export async function getAllRequests(): Promise<PendingRequest[]> {
     return rows.map((row: string[], index: number) => ({
       rowIndex: index,
       universityId: row[0] || "",
-      achievementType: row[1] || "",
+      description: row[1] || "",
       hours: parseFloat(row[2]) || 0,
       imageLink: row[3] || "",
       date: row[4] || "",
@@ -289,15 +283,25 @@ export async function getAllRequests(): Promise<PendingRequest[]> {
   }
 }
 
-// Approve a request
+// Approve a request with hours
 export async function approveRequest(
   rowIndex: number,
+  hours: number,
   approvedBy: string
 ): Promise<boolean> {
   try {
     const sheets = getSheetsClient();
 
-    // Update the approved column (F) and approved by column (G)
+    // Update the hours column (C), approved column (F) and approved by column (G)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${SHEETS.REQUESTS}!C${rowIndex + 2}`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: {
+        values: [[hours]],
+      },
+    });
+
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEETS.REQUESTS}!F${rowIndex + 2}:G${rowIndex + 2}`,

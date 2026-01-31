@@ -1,5 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -13,6 +15,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -24,7 +27,7 @@ import { useState } from "react";
 interface PendingRequest {
   rowIndex: number;
   universityId: string;
-  achievementType: string;
+  description: string;
   hours: number;
   imageLink: string;
   date: string;
@@ -34,6 +37,11 @@ interface PendingRequest {
 export default function AdminRequests() {
   const { user, loading: authLoading } = useAuth();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [approveDialog, setApproveDialog] = useState<{
+    open: boolean;
+    request: PendingRequest | null;
+  }>({ open: false, request: null });
+  const [hoursInput, setHoursInput] = useState("");
 
   const utils = trpc.useUtils();
 
@@ -46,6 +54,8 @@ export default function AdminRequests() {
     onSuccess: () => {
       toast.success("تمت الموافقة على الطلب");
       utils.requests.getPending.invalidate();
+      setApproveDialog({ open: false, request: null });
+      setHoursInput("");
     },
     onError: (error: { message?: string }) => {
       toast.error(error.message || "فشل في الموافقة على الطلب");
@@ -62,8 +72,22 @@ export default function AdminRequests() {
     },
   });
 
-  const handleApprove = (rowIndex: number) => {
-    approveMutation.mutate({ rowIndex });
+  const handleApproveClick = (request: PendingRequest) => {
+    setApproveDialog({ open: true, request });
+    setHoursInput("");
+  };
+
+  const handleApproveConfirm = () => {
+    if (!approveDialog.request || !hoursInput) {
+      toast.error("يرجى إدخال عدد الساعات");
+      return;
+    }
+    const hours = parseFloat(hoursInput);
+    if (isNaN(hours) || hours <= 0) {
+      toast.error("يرجى إدخال عدد ساعات صحيح");
+      return;
+    }
+    approveMutation.mutate({ rowIndex: approveDialog.request.rowIndex, hours });
   };
 
   const handleReject = (rowIndex: number) => {
@@ -152,8 +176,7 @@ export default function AdminRequests() {
             <TableHeader>
               <TableRow>
                 <TableHead className="text-right">الرقم الجامعي</TableHead>
-                <TableHead className="text-right">نوع الإنجاز</TableHead>
-                <TableHead className="text-right">الساعات</TableHead>
+                <TableHead className="text-right">وصف الإنجاز</TableHead>
                 <TableHead className="text-right">التاريخ</TableHead>
                 <TableHead className="text-right">الإثبات</TableHead>
                 <TableHead className="text-right w-32">إجراءات</TableHead>
@@ -162,7 +185,7 @@ export default function AdminRequests() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">
+                  <TableCell colSpan={5} className="text-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                   </TableCell>
                 </TableRow>
@@ -172,8 +195,9 @@ export default function AdminRequests() {
                     <TableCell className="font-mono" dir="ltr">
                       {request.universityId}
                     </TableCell>
-                    <TableCell>{request.achievementType}</TableCell>
-                    <TableCell>{request.hours} ساعة</TableCell>
+                    <TableCell className="max-w-xs">
+                      {request.description}
+                    </TableCell>
                     <TableCell>{formatDate(request.date)}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
@@ -184,11 +208,7 @@ export default function AdminRequests() {
                         >
                           <Image className="w-4 h-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          asChild
-                        >
+                        <Button variant="ghost" size="sm" asChild>
                           <a
                             href={request.imageLink}
                             target="_blank"
@@ -204,7 +224,7 @@ export default function AdminRequests() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleApprove(request.rowIndex)}
+                          onClick={() => handleApproveClick(request)}
                           disabled={approveMutation.isPending}
                           className="text-green-600 hover:text-green-700 hover:bg-green-50"
                         >
@@ -226,7 +246,7 @@ export default function AdminRequests() {
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={6}
+                    colSpan={5}
                     className="text-center py-8 text-muted-foreground"
                   >
                     لا توجد طلبات معلقة
@@ -253,6 +273,68 @@ export default function AdminRequests() {
               />
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Approve Dialog with Hours Input */}
+      <Dialog
+        open={approveDialog.open}
+        onOpenChange={(open) => {
+          if (!open) {
+            setApproveDialog({ open: false, request: null });
+            setHoursInput("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>الموافقة على الطلب</DialogTitle>
+          </DialogHeader>
+          {approveDialog.request && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg space-y-2">
+                <p>
+                  <strong>الرقم الجامعي:</strong>{" "}
+                  {approveDialog.request.universityId}
+                </p>
+                <p>
+                  <strong>الوصف:</strong> {approveDialog.request.description}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="hours">عدد الساعات التطوعية</Label>
+                <Input
+                  id="hours"
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  placeholder="مثال: 1.5"
+                  value={hoursInput}
+                  onChange={(e) => setHoursInput(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  حدد عدد الساعات التطوعية لهذا الإنجاز
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setApproveDialog({ open: false, request: null })}
+            >
+              إلغاء
+            </Button>
+            <Button
+              onClick={handleApproveConfirm}
+              disabled={approveMutation.isPending || !hoursInput}
+            >
+              {approveMutation.isPending ? (
+                <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+              ) : null}
+              موافقة
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

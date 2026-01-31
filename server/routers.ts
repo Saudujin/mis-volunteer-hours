@@ -30,9 +30,9 @@ export const appRouter = router({
     }),
   }),
 
-  // Achievement types management
+  // Achievement types management (for admin to set hours)
   achievements: router({
-    // Get all achievement types (public - for the form)
+    // Get all achievement types (public - for reference)
     getTypes: publicProcedure.query(async () => {
       return await getAchievementTypes();
     }),
@@ -76,7 +76,7 @@ export const appRouter = router({
       .input(
         z.object({
           universityId: z.string().min(1),
-          achievementType: z.string().min(1),
+          description: z.string().min(1),
           imageBase64: z.string().min(1),
           fileName: z.string().min(1),
         })
@@ -91,7 +91,7 @@ export const appRouter = router({
         // Submit request to Google Sheets
         const success = await submitRequest({
           universityId: input.universityId,
-          achievementType: input.achievementType,
+          description: input.description,
           imageLink,
         });
 
@@ -102,7 +102,7 @@ export const appRouter = router({
         // Notify HR admins
         await notifyOwner({
           title: "طلب ساعات تطوعية جديد",
-          content: `تم استلام طلب جديد من الطالب رقم ${input.universityId}`,
+          content: `تم استلام طلب جديد من الطالب رقم ${input.universityId}\nالوصف: ${input.description}`,
         });
 
         return { success: true };
@@ -129,13 +129,14 @@ export const appRouter = router({
 
     // Approve a request (admin only)
     approve: protectedProcedure
-      .input(z.object({ rowIndex: z.number() }))
+      .input(z.object({ rowIndex: z.number(), hours: z.number().positive() }))
       .mutation(async ({ input, ctx }) => {
         if (ctx.user.role !== "admin") {
           throw new Error("غير مصرح لك بهذا الإجراء");
         }
         const success = await approveRequest(
           input.rowIndex,
+          input.hours,
           ctx.user.name || ctx.user.email || "Admin"
         );
         if (!success) {

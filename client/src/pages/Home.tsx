@@ -2,22 +2,10 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Upload, CheckCircle, Loader2 } from "lucide-react";
-
-interface AchievementType {
-  id: string;
-  name: string;
-  hours: number;
-}
 
 // Convert Arabic numerals to English
 function convertArabicToEnglish(str: string): string {
@@ -31,22 +19,18 @@ function convertArabicToEnglish(str: string): string {
 
 export default function Home() {
   const [universityId, setUniversityId] = useState("");
-  const [achievementType, setAchievementType] = useState("");
+  const [description, setDescription] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch achievement types from Google Sheets
-  const { data: achievementTypes, isLoading: typesLoading } =
-    trpc.achievements.getTypes.useQuery();
-
   const submitMutation = trpc.achievements.submit.useMutation({
     onSuccess: () => {
       setIsSuccess(true);
       setUniversityId("");
-      setAchievementType("");
+      setDescription("");
       setImageFile(null);
       setImagePreview(null);
       toast.success("تم إرسال طلبك بنجاح!");
@@ -79,7 +63,7 @@ export default function Home() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!universityId || !achievementType || !imageFile) {
+    if (!universityId || !description || !imageFile) {
       toast.error("يرجى تعبئة جميع الحقول");
       return;
     }
@@ -93,7 +77,7 @@ export default function Home() {
         const base64 = reader.result as string;
         await submitMutation.mutateAsync({
           universityId,
-          achievementType,
+          description,
           imageBase64: base64,
           fileName: imageFile.name,
         });
@@ -152,31 +136,19 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Achievement Type */}
+          {/* Description */}
           <div className="space-y-2">
-            <Label htmlFor="achievementType">نوع الإنجاز</Label>
-            <Select value={achievementType} onValueChange={setAchievementType}>
-              <SelectTrigger>
-                <SelectValue placeholder="اختر نوع الإنجاز" />
-              </SelectTrigger>
-              <SelectContent>
-                {typesLoading ? (
-                  <SelectItem value="loading" disabled>
-                    جاري التحميل...
-                  </SelectItem>
-                ) : achievementTypes && achievementTypes.length > 0 ? (
-                  achievementTypes.map((type: AchievementType) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name} ({type.hours} ساعة)
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value="none" disabled>
-                    لا توجد أنواع متاحة
-                  </SelectItem>
-                )}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="description">وصف الإنجاز</Label>
+            <Textarea
+              id="description"
+              placeholder="اكتب وصف لما قمت به، مثال: حضرت اليوم التعريفي للنادي"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+            />
+            <p className="text-xs text-muted-foreground">
+              اشرح بإيجاز ما قمت به للحصول على الساعات التطوعية
+            </p>
           </div>
 
           {/* Image Upload */}
@@ -219,7 +191,7 @@ export default function Home() {
           <Button
             type="submit"
             className="w-full"
-            disabled={isSubmitting || !universityId || !achievementType || !imageFile}
+            disabled={isSubmitting || !universityId || !description || !imageFile}
           >
             {isSubmitting ? (
               <>

@@ -27,3 +27,6 @@
 - [x] Server-side Google Drive API integration
 - [x] tRPC procedures for all operations
 - [x] Vitest tests for critical functions
+
+## Changes
+- [x] Change achievement type dropdown to free text description field
