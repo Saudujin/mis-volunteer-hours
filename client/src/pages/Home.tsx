@@ -17,6 +17,37 @@ function convertArabicToEnglish(str: string): string {
   return result;
 }
 
+// Compress image to reduce upload time
+async function compressImage(file: File, maxWidth = 800, quality = 0.7): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+
+    img.onload = () => {
+      // Calculate new dimensions
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      // Draw and compress
+      ctx?.drawImage(img, 0, 0, width, height);
+      const compressedBase64 = canvas.toDataURL("image/jpeg", quality);
+      resolve(compressedBase64);
+    };
+
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export default function Home() {
   const [universityId, setUniversityId] = useState("");
   const [description, setDescription] = useState("");
@@ -24,6 +55,7 @@ export default function Home() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const submitMutation = trpc.achievements.submit.useMutation({
@@ -33,11 +65,13 @@ export default function Home() {
       setDescription("");
       setImageFile(null);
       setImagePreview(null);
+      setUploadProgress("");
       toast.success("تم إرسال طلبك بنجاح!");
       setTimeout(() => setIsSuccess(false), 3000);
     },
     onError: (error: { message?: string }) => {
       toast.error(error.message || "حدث خطأ أثناء الإرسال");
+      setUploadProgress("");
     },
   });
 
@@ -48,10 +82,11 @@ export default function Home() {
     setUniversityId(numbersOnly);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setImageFile(file);
+      // Show preview immediately
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
@@ -71,20 +106,20 @@ export default function Home() {
     setIsSubmitting(true);
 
     try {
-      // Convert image to base64
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result as string;
-        await submitMutation.mutateAsync({
-          universityId,
-          description,
-          imageBase64: base64,
-          fileName: imageFile.name,
-        });
-        setIsSubmitting(false);
-      };
-      reader.readAsDataURL(imageFile);
+      // Compress image before upload
+      setUploadProgress("جاري ضغط الصورة...");
+      const compressedBase64 = await compressImage(imageFile);
+      
+      setUploadProgress("جاري رفع الصورة...");
+      await submitMutation.mutateAsync({
+        universityId,
+        description,
+        imageBase64: compressedBase64,
+        fileName: imageFile.name,
+      });
     } catch {
+      // Error handled by mutation
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -196,7 +231,7 @@ export default function Home() {
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-                جاري الإرسال...
+                {uploadProgress || "جاري الإرسال..."}
               </>
             ) : (
               "إرسال الطلب"
