@@ -1,7 +1,16 @@
 import { google, sheets_v4 } from "googleapis";
 import { ENV } from "./_core/env";
-import { storagePut } from "./storage";
+import { v2 as cloudinary } from "cloudinary";
 import { nanoid } from "nanoid";
+
+// Configure Cloudinary
+function configureCloudinary() {
+  cloudinary.config({
+    cloud_name: ENV.cloudinaryCloudName,
+    api_key: ENV.cloudinaryApiKey,
+    api_secret: ENV.cloudinaryApiSecret,
+  });
+}
 
 // Initialize Google Sheets API
 function getGoogleAuth() {
@@ -156,29 +165,28 @@ export async function deleteAchievementType(rowIndex: number): Promise<boolean> 
   }
 }
 
-// Upload image to S3 storage and return the link
+// Upload image to Cloudinary and return the link
 export async function uploadImageToStorage(
   base64Data: string,
   fileName: string
 ): Promise<string> {
   try {
-    // Extract the base64 content (remove data:image/...;base64, prefix)
-    const base64Content = base64Data.split(",")[1];
-    const mimeType = base64Data.match(/data:(.*?);base64/)?.[1] || "image/jpeg";
+    // Configure Cloudinary
+    configureCloudinary();
 
-    // Convert base64 to buffer
-    const buffer = Buffer.from(base64Content, "base64");
+    // Generate unique public_id
+    const publicId = `volunteer-proofs/${Date.now()}-${nanoid(8)}`;
 
-    // Generate unique file name
-    const ext = fileName.split(".").pop() || "jpg";
-    const uniqueFileName = `volunteer-proofs/${Date.now()}-${nanoid(8)}.${ext}`;
+    // Upload to Cloudinary using base64 data URI
+    const result = await cloudinary.uploader.upload(base64Data, {
+      public_id: publicId,
+      folder: "mis-volunteer-hours",
+      resource_type: "image",
+    });
 
-    // Upload to S3 storage
-    const { url } = await storagePut(uniqueFileName, buffer, mimeType);
-
-    return url;
+    return result.secure_url;
   } catch (error) {
-    console.error("Error uploading to storage:", error);
+    console.error("Error uploading to Cloudinary:", error);
     throw new Error("Failed to upload image");
   }
 }

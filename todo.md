@@ -34,3 +34,4 @@
 
 ## Bugs
 - [x] Fix Google Drive image upload error (switched to S3 storage)
+- [x] Replace S3 storage with Cloudinary for external hosting compatibility
