@@ -1,6 +1,7 @@
-import { google, sheets_v4, drive_v3 } from "googleapis";
+import { google, sheets_v4 } from "googleapis";
 import { ENV } from "./_core/env";
-import { Readable } from "stream";
+import { storagePut } from "./storage";
+import { nanoid } from "nanoid";
 
 // Initialize Google Sheets API
 function getGoogleAuth() {
@@ -33,11 +34,6 @@ function getGoogleAuth() {
 function getSheetsClient(): sheets_v4.Sheets {
   const auth = getGoogleAuth();
   return google.sheets({ version: "v4", auth });
-}
-
-function getDriveClient(): drive_v3.Drive {
-  const auth = getGoogleAuth();
-  return google.drive({ version: "v3", auth });
 }
 
 const SPREADSHEET_ID = ENV.googleSpreadsheetId || "";
@@ -160,14 +156,12 @@ export async function deleteAchievementType(rowIndex: number): Promise<boolean> 
   }
 }
 
-// Upload image to Google Drive and return the link
-export async function uploadImageToDrive(
+// Upload image to S3 storage and return the link
+export async function uploadImageToStorage(
   base64Data: string,
   fileName: string
 ): Promise<string> {
   try {
-    const drive = getDriveClient();
-
     // Extract the base64 content (remove data:image/...;base64, prefix)
     const base64Content = base64Data.split(",")[1];
     const mimeType = base64Data.match(/data:(.*?);base64/)?.[1] || "image/jpeg";
@@ -175,35 +169,17 @@ export async function uploadImageToDrive(
     // Convert base64 to buffer
     const buffer = Buffer.from(base64Content, "base64");
 
-    // Create file in Google Drive
-    const response = await drive.files.create({
-      requestBody: {
-        name: `${Date.now()}_${fileName}`,
-        mimeType: mimeType,
-        parents: ENV.googleDriveFolderId ? [ENV.googleDriveFolderId] : undefined,
-      },
-      media: {
-        mimeType: mimeType,
-        body: Readable.from(buffer),
-      },
-      fields: "id,webViewLink",
-    });
+    // Generate unique file name
+    const ext = fileName.split(".").pop() || "jpg";
+    const uniqueFileName = `volunteer-proofs/${Date.now()}-${nanoid(8)}.${ext}`;
 
-    // Make the file publicly viewable
-    await drive.permissions.create({
-      fileId: response.data.id!,
-      requestBody: {
-        role: "reader",
-        type: "anyone",
-      },
-    });
+    // Upload to S3 storage
+    const { url } = await storagePut(uniqueFileName, buffer, mimeType);
 
-    // Get the direct view link
-    const fileLink = `https://drive.google.com/file/d/${response.data.id}/view`;
-    return fileLink;
+    return url;
   } catch (error) {
-    console.error("Error uploading to Google Drive:", error);
-    throw new Error("Failed to upload image to Google Drive");
+    console.error("Error uploading to storage:", error);
+    throw new Error("Failed to upload image");
   }
 }
 

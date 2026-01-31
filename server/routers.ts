@@ -7,7 +7,7 @@ import {
   getAchievementTypes,
   addAchievementType,
   deleteAchievementType,
-  uploadImageToDrive,
+  uploadImageToStorage,
   submitRequest,
   getPendingRequests,
   getAllRequests,
@@ -82,8 +82,8 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        // Upload image to Google Drive
-        const imageLink = await uploadImageToDrive(
+        // Upload image to S3 storage
+        const imageLink = await uploadImageToStorage(
           input.imageBase64,
           input.fileName
         );

@@ -31,3 +31,6 @@
 ## Changes
 - [x] Change achievement type dropdown to free text description field
 - [x] Connected Google Sheets and Google Drive APIs with service account credentials
+
+## Bugs
+- [x] Fix Google Drive image upload error (switched to S3 storage)
