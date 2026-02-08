@@ -39,3 +39,4 @@
 - [x] Fix: Requests sheet - only write to columns A-E, leave F (CheckBox) and G (Dropdown) for manual input
 - [ ] Fix: Members sheet formulas for cumulative hours (column J) and achievement details (column K)
 - [x] Auto-add CheckBox in column F and Dropdown (فلان, فلان 2, فلان 3) in column G when new request is submitted
+- [ ] Add vercel.json and make Express server compatible with Vercel Serverless Functions
