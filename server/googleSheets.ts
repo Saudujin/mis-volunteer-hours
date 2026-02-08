@@ -195,8 +195,11 @@ export async function uploadImageToStorage(
   }
 }
 
+// HR reviewers list for dropdown in column G
+const HR_REVIEWERS = ["\u0641\u0644\u0627\u0646", "\u0641\u0644\u0627\u0646 2", "\u0641\u0644\u0627\u0646 3"];
+
 // Submit a new volunteer hours request
-// Only writes to columns A-E, leaving F (CheckBox) and G (Dropdown) for manual input
+// Writes data to A-E, then auto-adds CheckBox in F and Dropdown in G
 export async function submitRequest(data: {
   universityId: string;
   description: string;
@@ -205,8 +208,8 @@ export async function submitRequest(data: {
   try {
     const sheets = getSheetsClient();
 
-    // Only append to columns A-E to preserve manual CheckBox (F) and Dropdown (G)
-    await sheets.spreadsheets.values.append({
+    // Step 1: Append data to columns A-E
+    const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEETS.REQUESTS}!A:E`,
       valueInputOption: "USER_ENTERED",
@@ -222,6 +225,100 @@ export async function submitRequest(data: {
         ],
       },
     });
+
+    // Step 2: Get the row number that was just added
+    const updatedRange = appendResult.data.updates?.updatedRange || "";
+    // Extract row number from range like "Requests!A5:E5"
+    const rowMatch = updatedRange.match(/(\d+)/);
+    if (!rowMatch) {
+      console.warn("Could not determine row number for data validation");
+      return true; // Data was saved, just couldn't add validation
+    }
+    const newRowNumber = parseInt(rowMatch[1]);
+
+    // Step 3: Get the sheet ID for batchUpdate
+    const spreadsheet = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
+    });
+    const sheet = spreadsheet.data.sheets?.find(
+      (s: sheets_v4.Schema$Sheet) => s.properties?.title === SHEETS.REQUESTS
+    );
+    if (!sheet?.properties?.sheetId && sheet?.properties?.sheetId !== 0) {
+      console.warn("Could not find Requests sheet for data validation");
+      return true;
+    }
+    const sheetId = sheet.properties.sheetId;
+
+    // Step 4: Add CheckBox (F) and Dropdown (G) via batchUpdate
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          // CheckBox in column F (index 5)
+          {
+            setDataValidation: {
+              range: {
+                sheetId: sheetId,
+                startRowIndex: newRowNumber - 1,
+                endRowIndex: newRowNumber,
+                startColumnIndex: 5, // F
+                endColumnIndex: 6,
+              },
+              rule: {
+                condition: {
+                  type: "BOOLEAN",
+                },
+                strict: true,
+                showCustomUi: true,
+              },
+            },
+          },
+          // Dropdown in column G (index 6)
+          {
+            setDataValidation: {
+              range: {
+                sheetId: sheetId,
+                startRowIndex: newRowNumber - 1,
+                endRowIndex: newRowNumber,
+                startColumnIndex: 6, // G
+                endColumnIndex: 7,
+              },
+              rule: {
+                condition: {
+                  type: "ONE_OF_LIST",
+                  values: HR_REVIEWERS.map((name) => ({ userEnteredValue: name })),
+                },
+                strict: true,
+                showCustomUi: true,
+              },
+            },
+          },
+          // Set F cell value to FALSE (unchecked)
+          {
+            updateCells: {
+              range: {
+                sheetId: sheetId,
+                startRowIndex: newRowNumber - 1,
+                endRowIndex: newRowNumber,
+                startColumnIndex: 5,
+                endColumnIndex: 6,
+              },
+              rows: [
+                {
+                  values: [
+                    {
+                      userEnteredValue: { boolValue: false },
+                    },
+                  ],
+                },
+              ],
+              fields: "userEnteredValue",
+            },
+          },
+        ],
+      },
+    });
+
     return true;
   } catch (error) {
     console.error("Error submitting request:", error);
