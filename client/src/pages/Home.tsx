@@ -151,7 +151,7 @@ export default function Home() {
                   id="universityId"
                   type="text"
                   inputMode="numeric"
-                  placeholder="مثال: 445101413"
+                  placeholder="مثال: 44*******"
                   value={universityId}
                   onChange={handleUniversityIdChange}
                   className="text-left h-11 bg-white"
