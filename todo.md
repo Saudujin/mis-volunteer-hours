@@ -36,3 +36,5 @@
 - [x] Fix Google Drive image upload error (switched to S3 storage)
 - [x] Replace S3 storage with Cloudinary for external hosting compatibility
 - [x] Optimize image upload speed (compress images before upload)
+- [x] Fix: Requests sheet - only write to columns A-E, leave F (CheckBox) and G (Dropdown) for manual input
+- [ ] Fix: Members sheet formulas for cumulative hours (column J) and achievement details (column K)

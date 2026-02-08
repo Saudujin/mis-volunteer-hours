@@ -19,7 +19,11 @@ interface Member {
   name: string;
   email: string;
   phone: string;
-  committee: string;
+  nationalId: string;
+  level: string;
+  college: string;
+  department: string;
+  position: string;
   totalHours: number;
   achievements: string;
 }
@@ -94,7 +98,7 @@ export default function AdminMembers() {
                 <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>الاسم</TableHead>
                 <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>الإيميل</TableHead>
                 <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>الجوال</TableHead>
-                <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>اللجنة</TableHead>
+                <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>المنصب</TableHead>
                 <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>الساعات</TableHead>
                 <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>الإنجازات</TableHead>
               </TableRow>
@@ -111,11 +115,11 @@ export default function AdminMembers() {
                   <TableRow key={member.universityId} className="hover:bg-accent/30">
                     <TableCell className="font-mono" dir="ltr">{member.universityId}</TableCell>
                     <TableCell className="font-medium">{member.name}</TableCell>
-                    <TableCell dir="ltr" className="text-left">{member.email}</TableCell>
-                    <TableCell dir="ltr" className="text-left">{member.phone}</TableCell>
+                    <TableCell dir="ltr" className="text-left text-sm">{member.email}</TableCell>
+                    <TableCell dir="ltr" className="text-left text-sm">{member.phone}</TableCell>
                     <TableCell>
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ background: "rgba(127, 174, 217, 0.3)", color: "#022D63" }}>
-                        {member.committee}
+                        {member.position || "-"}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -136,7 +140,7 @@ export default function AdminMembers() {
 
         <div className="mt-4 p-4 bg-white border border-border/50 rounded-xl shadow-sm">
           <p className="text-sm text-muted-foreground">
-            <strong style={{ color: "#022D63" }}>ملاحظة:</strong> هذه البيانات تُقرأ من Google Sheets. لتعديل بيانات الأعضاء، يرجى التعديل مباشرة في الشيت.
+            <strong style={{ color: "#022D63" }}>ملاحظة:</strong> الساعات التراكمية وتفاصيل الإنجازات تُحسب تلقائياً من ورقة Requests باستخدام معادلات Google Sheets. لتعديل بيانات الأعضاء، عدّل مباشرة في الشيت.
           </p>
         </div>
       </main>

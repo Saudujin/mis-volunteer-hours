@@ -75,7 +75,11 @@ export interface Member {
   name: string;
   email: string;
   phone: string;
-  committee: string;
+  nationalId: string;
+  level: string;
+  college: string;
+  department: string;
+  position: string;
   totalHours: number;
   achievements: string;
 }
@@ -192,6 +196,7 @@ export async function uploadImageToStorage(
 }
 
 // Submit a new volunteer hours request
+// Only writes to columns A-E, leaving F (CheckBox) and G (Dropdown) for manual input
 export async function submitRequest(data: {
   universityId: string;
   description: string;
@@ -200,9 +205,10 @@ export async function submitRequest(data: {
   try {
     const sheets = getSheetsClient();
 
+    // Only append to columns A-E to preserve manual CheckBox (F) and Dropdown (G)
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEETS.REQUESTS}!A:G`,
+      range: `${SHEETS.REQUESTS}!A:E`,
       valueInputOption: "USER_ENTERED",
       requestBody: {
         values: [
@@ -211,9 +217,7 @@ export async function submitRequest(data: {
             data.description,
             "", // Hours - will be set by admin when approving
             data.imageLink,
-            new Date().toISOString(),
-            "FALSE", // Approved column
-            "", // Approved by
+            new Date().toLocaleDateString("ar-SA", { year: "numeric", month: "2-digit", day: "2-digit" }),
           ],
         ],
       },
@@ -278,6 +282,7 @@ export async function getAllRequests(): Promise<PendingRequest[]> {
 }
 
 // Approve a request with hours
+// Updates hours in column C and approval info in F & G
 export async function approveRequest(
   rowIndex: number,
   hours: number,
@@ -286,7 +291,7 @@ export async function approveRequest(
   try {
     const sheets = getSheetsClient();
 
-    // Update the hours column (C), approved column (F) and approved by column (G)
+    // Update hours in column C
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEETS.REQUESTS}!C${rowIndex + 2}`,
@@ -296,6 +301,7 @@ export async function approveRequest(
       },
     });
 
+    // Update approved (F) and approved by (G)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEETS.REQUESTS}!F${rowIndex + 2}:G${rowIndex + 2}`,
@@ -355,12 +361,13 @@ export async function rejectRequest(rowIndex: number): Promise<boolean> {
 }
 
 // Get all members with their cumulative hours
+// Members sheet columns: A=الرقم الجامعي, B=الاسم, C=الايميل, D=رقم الجوال, E=رقم الهوية, F=المستوى, G=الكلية, H=القسم, I=المنصب, J=الساعات التراكمية, K=تفاصيل الإنجازات
 export async function getMembers(): Promise<Member[]> {
   try {
     const sheets = getSheetsClient();
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEETS.MEMBERS}!A2:G`,
+      range: `${SHEETS.MEMBERS}!A2:K`,
     });
 
     const rows = response.data.values || [];
@@ -369,9 +376,13 @@ export async function getMembers(): Promise<Member[]> {
       name: row[1] || "",
       email: row[2] || "",
       phone: row[3] || "",
-      committee: row[4] || "",
-      totalHours: parseFloat(row[5]) || 0,
-      achievements: row[6] || "",
+      nationalId: row[4] || "",
+      level: row[5] || "",
+      college: row[6] || "",
+      department: row[7] || "",
+      position: row[8] || "",
+      totalHours: parseFloat(row[9]) || 0,
+      achievements: row[10] || "",
     }));
   } catch (error) {
     console.error("Error fetching members:", error);
