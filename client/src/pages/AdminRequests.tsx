@@ -1,7 +1,7 @@
+import { useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -15,33 +15,28 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Loader2, Check, X, Image, ArrowRight, ExternalLink } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, ArrowRight, Eye, Clock } from "lucide-react";
 import { Link } from "wouter";
 import { getLoginUrl } from "@/const";
-import { useState } from "react";
+import { MIS_LOGO_URL } from "@shared/logo";
 
 interface PendingRequest {
   rowIndex: number;
   universityId: string;
   description: string;
-  hours: number;
   imageLink: string;
   date: string;
+  hours: number;
   approved: boolean;
 }
 
 export default function AdminRequests() {
   const { user, loading: authLoading } = useAuth();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [approveDialog, setApproveDialog] = useState<{
-    open: boolean;
-    request: PendingRequest | null;
-  }>({ open: false, request: null });
-  const [hoursInput, setHoursInput] = useState("");
+  const [hoursInputs, setHoursInputs] = useState<Record<number, string>>({});
 
   const utils = trpc.useUtils();
 
@@ -52,13 +47,11 @@ export default function AdminRequests() {
 
   const approveMutation = trpc.requests.approve.useMutation({
     onSuccess: () => {
-      toast.success("تمت الموافقة على الطلب");
+      toast.success("تم اعتماد الطلب بنجاح");
       utils.requests.getPending.invalidate();
-      setApproveDialog({ open: false, request: null });
-      setHoursInput("");
     },
     onError: (error: { message?: string }) => {
-      toast.error(error.message || "فشل في الموافقة على الطلب");
+      toast.error(error.message || "فشل في اعتماد الطلب");
     },
   });
 
@@ -72,22 +65,13 @@ export default function AdminRequests() {
     },
   });
 
-  const handleApproveClick = (request: PendingRequest) => {
-    setApproveDialog({ open: true, request });
-    setHoursInput("");
-  };
-
-  const handleApproveConfirm = () => {
-    if (!approveDialog.request || !hoursInput) {
+  const handleApprove = (rowIndex: number) => {
+    const hours = parseFloat(hoursInputs[rowIndex] || "0");
+    if (!hours || hours <= 0) {
       toast.error("يرجى إدخال عدد الساعات");
       return;
     }
-    const hours = parseFloat(hoursInput);
-    if (isNaN(hours) || hours <= 0) {
-      toast.error("يرجى إدخال عدد ساعات صحيح");
-      return;
-    }
-    approveMutation.mutate({ rowIndex: approveDialog.request.rowIndex, hours });
+    approveMutation.mutate({ rowIndex, hours });
   };
 
   const handleReject = (rowIndex: number) => {
@@ -96,40 +80,20 @@ export default function AdminRequests() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString("ar-SA", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return dateString;
-    }
-  };
-
-  // Convert Google Drive view link to embeddable image link
-  const getImageUrl = (link: string) => {
-    const match = link.match(/\/d\/([^/]+)/);
-    if (match) {
-      return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w1000`;
-    }
-    return link;
-  };
-
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "#F9F9F9" }}>
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#034CA6" }} />
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <h1 className="text-xl font-medium mb-4">يرجى تسجيل الدخول</h1>
-        <Button asChild>
+      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: "#F9F9F9" }}>
+        <img src={MIS_LOGO_URL} alt="MIS" className="h-16 mb-6" />
+        <h1 className="text-xl font-semibold mb-4" style={{ color: "#022D63" }}>يرجى تسجيل الدخول</h1>
+        <Button asChild style={{ background: "#034CA6" }}>
           <a href={getLoginUrl()}>تسجيل الدخول</a>
         </Button>
       </div>
@@ -138,106 +102,112 @@ export default function AdminRequests() {
 
   if (user.role !== "admin") {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4">
-        <h1 className="text-xl font-medium mb-4">غير مصرح لك بالوصول</h1>
+      <div className="min-h-screen flex flex-col items-center justify-center p-4" style={{ background: "#F9F9F9" }}>
+        <h1 className="text-xl font-semibold mb-4" style={{ color: "#022D63" }}>غير مصرح لك بالوصول</h1>
         <Link href="/">
-          <Button variant="outline">
-            <ArrowRight className="w-4 h-4 ml-2" />
-            العودة للرئيسية
-          </Button>
+          <Button variant="outline"><ArrowRight className="w-4 h-4 ml-2" />العودة للرئيسية</Button>
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col" style={{ background: "#F9F9F9" }}>
       {/* Header */}
-      <header className="border-b py-4">
+      <header style={{ background: "linear-gradient(135deg, #022D63 0%, #034CA6 100%)" }} className="py-5 shadow-md">
         <div className="container flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-medium">مراجعة الطلبات</h1>
-            <p className="text-sm text-muted-foreground">
-              الطلبات المعلقة في انتظار الموافقة
-            </p>
+          <div className="flex items-center gap-4">
+            <img src={MIS_LOGO_URL} alt="MIS Logo" className="h-10 w-auto brightness-0 invert" />
+            <div>
+              <h1 className="text-lg font-semibold text-white">مراجعة الطلبات</h1>
+              <p className="text-sm text-white/70">الطلبات المعلقة في انتظار الموافقة</p>
+            </div>
           </div>
           <Link href="/admin">
-            <Button variant="outline" size="sm">
-              <ArrowRight className="w-4 h-4 ml-2" />
-              لوحة التحكم
+            <Button variant="outline" size="sm" className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white">
+              <ArrowRight className="w-4 h-4 ml-2" />لوحة التحكم
             </Button>
           </Link>
         </div>
       </header>
 
       <main className="flex-1 container py-8">
-        <div className="border rounded-lg overflow-x-auto">
+        {/* Stats */}
+        <div className="mb-6 flex items-center gap-3 p-4 bg-white rounded-xl border border-border/50 shadow-sm">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "#034CA6" }}>
+            <Clock className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className="text-2xl font-bold" style={{ color: "#034CA6" }}>{requests?.length ?? 0}</p>
+            <p className="text-sm text-muted-foreground">طلب في انتظار المراجعة</p>
+          </div>
+        </div>
+
+        {/* Requests Table */}
+        <div className="bg-white border border-border/50 rounded-xl shadow-sm overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="text-right">الرقم الجامعي</TableHead>
-                <TableHead className="text-right">وصف الإنجاز</TableHead>
-                <TableHead className="text-right">التاريخ</TableHead>
-                <TableHead className="text-right">الإثبات</TableHead>
-                <TableHead className="text-right w-32">إجراءات</TableHead>
+              <TableRow style={{ background: "#F9F9F9" }}>
+                <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>الرقم الجامعي</TableHead>
+                <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>وصف الإنجاز</TableHead>
+                <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>التاريخ</TableHead>
+                <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>الإثبات</TableHead>
+                <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>الساعات</TableHead>
+                <TableHead className="text-right font-semibold" style={{ color: "#022D63" }}>إجراءات</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: "#034CA6" }} />
                   </TableCell>
                 </TableRow>
               ) : requests && requests.length > 0 ? (
-                requests.map((request: PendingRequest) => (
-                  <TableRow key={request.rowIndex}>
-                    <TableCell className="font-mono" dir="ltr">
-                      {request.universityId}
-                    </TableCell>
-                    <TableCell className="max-w-xs">
-                      {request.description}
-                    </TableCell>
-                    <TableCell>{formatDate(request.date)}</TableCell>
+                requests.map((req: PendingRequest) => (
+                  <TableRow key={req.rowIndex} className="hover:bg-accent/30">
+                    <TableCell className="font-mono" dir="ltr">{req.universityId}</TableCell>
+                    <TableCell className="max-w-xs">{req.description}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{req.date}</TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
+                      {req.imageLink ? (
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedImage(req.imageLink)} style={{ color: "#034CA6" }}>
+                          <Eye className="w-4 h-4 ml-1" />عرض
+                        </Button>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">لا يوجد</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        placeholder="0"
+                        value={hoursInputs[req.rowIndex] || ""}
+                        onChange={(e) => setHoursInputs((prev) => ({ ...prev, [req.rowIndex]: e.target.value }))}
+                        className="w-20 h-8 text-center bg-white"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          onClick={() => handleApprove(req.rowIndex)}
+                          disabled={approveMutation.isPending}
+                          className="text-white"
+                          style={{ background: "#034CA6" }}
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setSelectedImage(request.imageLink)}
-                        >
-                          <Image className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" asChild>
-                          <a
-                            href={request.imageLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleApproveClick(request)}
-                          disabled={approveMutation.isPending}
-                          className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                        >
-                          <Check className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleReject(request.rowIndex)}
+                          onClick={() => handleReject(req.rowIndex)}
                           disabled={rejectMutation.isPending}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50"
                         >
-                          <X className="w-4 h-4" />
+                          <XCircle className="w-4 h-4" />
                         </Button>
                       </div>
                     </TableCell>
@@ -245,11 +215,11 @@ export default function AdminRequests() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell
-                    colSpan={5}
-                    className="text-center py-8 text-muted-foreground"
-                  >
-                    لا توجد طلبات معلقة
+                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                    <div className="space-y-2">
+                      <CheckCircle className="w-10 h-10 mx-auto" style={{ color: "#7FAED9" }} />
+                      <p>لا توجد طلبات معلقة</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
@@ -258,90 +228,23 @@ export default function AdminRequests() {
         </div>
       </main>
 
-      {/* Image Preview Dialog */}
+      {/* Image Dialog */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>صورة الإثبات</DialogTitle>
           </DialogHeader>
           {selectedImage && (
-            <div className="flex justify-center">
-              <img
-                src={getImageUrl(selectedImage)}
-                alt="Proof"
-                className="max-h-[70vh] rounded-lg"
-              />
-            </div>
+            <img src={selectedImage} alt="Proof" className="w-full rounded-lg" />
           )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Approve Dialog with Hours Input */}
-      <Dialog
-        open={approveDialog.open}
-        onOpenChange={(open) => {
-          if (!open) {
-            setApproveDialog({ open: false, request: null });
-            setHoursInput("");
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>الموافقة على الطلب</DialogTitle>
-          </DialogHeader>
-          {approveDialog.request && (
-            <div className="space-y-4">
-              <div className="p-4 bg-muted rounded-lg space-y-2">
-                <p>
-                  <strong>الرقم الجامعي:</strong>{" "}
-                  {approveDialog.request.universityId}
-                </p>
-                <p>
-                  <strong>الوصف:</strong> {approveDialog.request.description}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="hours">عدد الساعات التطوعية</Label>
-                <Input
-                  id="hours"
-                  type="number"
-                  step="0.5"
-                  min="0"
-                  placeholder="مثال: 1.5"
-                  value={hoursInput}
-                  onChange={(e) => setHoursInput(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  حدد عدد الساعات التطوعية لهذا الإنجاز
-                </p>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setApproveDialog({ open: false, request: null })}
-            >
-              إلغاء
-            </Button>
-            <Button
-              onClick={handleApproveConfirm}
-              disabled={approveMutation.isPending || !hoursInput}
-            >
-              {approveMutation.isPending ? (
-                <Loader2 className="w-4 h-4 ml-2 animate-spin" />
-              ) : null}
-              موافقة
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Footer */}
-      <footer className="border-t py-4">
-        <div className="container text-center text-sm text-muted-foreground">
-          نادي نظم المعلومات الإدارية © {new Date().getFullYear()}
+      <footer className="py-4" style={{ background: "#022D63" }}>
+        <div className="container flex items-center justify-center gap-3">
+          <img src={MIS_LOGO_URL} alt="MIS" className="h-5 w-auto brightness-0 invert opacity-50" />
+          <p className="text-sm text-white/50">نادي نظم المعلومات الإدارية © {new Date().getFullYear()}</p>
         </div>
       </footer>
     </div>
