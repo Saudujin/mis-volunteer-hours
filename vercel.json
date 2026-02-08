@@ -1,17 +1,9 @@
 {
   "version": 2,
   "installCommand": "pnpm install",
-  "buildCommand": "vite build && esbuild api/index.ts --platform=node --packages=external --bundle --format=esm --outfile=api/_compiled.mjs",
+  "buildCommand": "vite build",
   "outputDirectory": "dist/public",
-  "functions": {
-    "api/_compiled.mjs": {
-      "maxDuration": 30
-    }
-  },
   "rewrites": [
-    { "source": "/api/oauth/:path*", "destination": "/api/_compiled.mjs" },
-    { "source": "/api/trpc/:path*", "destination": "/api/_compiled.mjs" },
-    { "source": "/api/:path*", "destination": "/api/_compiled.mjs" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
