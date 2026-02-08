@@ -1,9 +1,14 @@
 {
   "version": 2,
-  "installCommand": "pnpm install",
   "buildCommand": "vite build",
   "outputDirectory": "dist/public",
+  "functions": {
+    "src/index.ts": {
+      "maxDuration": 30
+    }
+  },
   "rewrites": [
+    { "source": "/api/(.*)", "destination": "/src/index.ts" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
